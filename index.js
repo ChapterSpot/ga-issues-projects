@@ -21,6 +21,7 @@ async function run() {
     const issue = core.getInput('issue');
     const repository = core.getInput('repository');
     const github_token = core.getInput('github_token');
+    const projectIds = core.getInput('issue_project_ids').split(',');
 
     let query = `
     query($owner:String!, $name:String!){
@@ -37,7 +38,6 @@ async function run() {
 
     let response = await github_query(github_token, query, variables);
     console.log(response);
-    const project = response['data']['repository']['projects']['nodes'][0];
 
     query = `
     query($owner:String!, $name:String!, $number:Int!){
@@ -53,18 +53,15 @@ async function run() {
     console.log(response);
     const issueId = response['data']['repository']['issue']['id'];
 
-    console.log(`Adding issue ${issue} to ${project['name']}`);
-    console.log("");
-
     query = `
-    mutation($issueId:ID!, $projectId:ID!) {
-      updateIssue(input:{id:$issueId, projectIds:[$projectId]}) {
+    mutation($issueId:ID!, $projectIds:[ID!]) {
+      updateIssue(input:{id:$issueId, projectIds:$projectIds}) {
         issue {
           id
         }
       }
     }`;
-    variables = { issueId, projectId: project['id'] };
+    variables = { issueId, projectIds };
 
     response = await github_query(github_token, query, variables);
     console.log(response);
