@@ -21,7 +21,7 @@ async function run() {
     const issue = core.getInput('issue');
     const repository = core.getInput('repository');
     const github_token = core.getInput('github_token');
-    const projectIds = core.getInput('issue_project_ids').split(',');
+    const projectIds = core.getInput('issue_project_ids').replace(/[\s]+]/, '').split(',').map(i => Number.parseInt(i));
 
     let query = `
     query($owner:String!, $name:String!){
@@ -52,6 +52,9 @@ async function run() {
     response = await github_query(github_token, query, variables);
     console.log(response);
     const issueId = response['data']['repository']['issue']['id'];
+
+    console.log(`Adding issue ${issue} to projects: ${projectIds.join(', ')}`);
+    console.log("");
 
     query = `
     mutation($issueId:ID!, $projectIds:[ID!]) {
