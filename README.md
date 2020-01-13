@@ -23,5 +23,5 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         repository: ${{ github.repository }}
         issue: ${{ github.event.issue.number }}
-
+        issue_project_ids: list_of_project_ids,delimited_by_comma
 ```

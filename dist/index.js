@@ -63,6 +63,7 @@ module.exports = require("os");
 
 const core = __webpack_require__(470);
 const fetch = __webpack_require__(454);
+const util = __webpack_require__(669);
 
 async function github_query(github_token, query, variables) {
   return fetch('https://api.github.com/graphql', {
@@ -80,27 +81,13 @@ async function github_query(github_token, query, variables) {
 
 // most @actions toolkit packages have async methods
 async function run() {
-  try { 
+  try {
     const issue = core.getInput('issue');
     const repository = core.getInput('repository');
     const github_token = core.getInput('github_token');
+    const projectIds = core.getInput('issue_project_ids').replace(/[\s]+]/, '').split(',');
 
-    let query = `
-    query($owner:String!, $name:String!){
-      repository(owner: $owner, name: $name) {
-        projects(first:1) {
-          nodes {
-            id
-            name
-          }
-        }
-      }
-    }`;
-    let variables = { owner: repository.split("/")[0], name: repository.split("/")[1] };
-
-    let response = await github_query(github_token, query, variables);
-    console.log(response);
-    const project = response['data']['repository']['projects']['nodes'][0];
+    let response, variables;
 
     query = `
     query($owner:String!, $name:String!, $number:Int!){
@@ -110,29 +97,30 @@ async function run() {
         }
       }
     }`;
+
     variables = { owner: repository.split("/")[0], name: repository.split("/")[1], number: parseInt(issue) };
 
     response = await github_query(github_token, query, variables);
-    console.log(response);
+    console.log(util.inspect(response, { showHidden: false, depth: null }));
     const issueId = response['data']['repository']['issue']['id'];
 
-    console.log(`Adding issue ${issue} to ${project['name']}`);
+    console.log(`Adding issue ${issue} with issue ID ${issueId} to projects: ${projectIds.join(', ')}`);
     console.log("");
 
     query = `
-    mutation($issueId:ID!, $projectId:ID!) {
-      updateIssue(input:{id:$issueId, projectIds:[$projectId]}) {
+    mutation($issueId:ID!, $projectIds:[ID!]) {
+      updateIssue(input:{id:$issueId, projectIds:$projectIds}) {
         issue {
           id
         }
       }
     }`;
-    variables = { issueId, projectId: project['id'] };
+    variables = { issueId, projectIds };
 
     response = await github_query(github_token, query, variables);
-    console.log(response);
+    console.log(util.inspect(response, { showHidden: false, depth: null }));
     console.log(`Done!`)
-  } 
+  }
   catch (error) {
     core.setFailed(error.message);
   }
@@ -197,13 +185,20 @@ class Command {
         let cmdStr = CMD_STRING + this.command;
         if (this.properties && Object.keys(this.properties).length > 0) {
             cmdStr += ' ';
+            let first = true;
             for (const key in this.properties) {
                 if (this.properties.hasOwnProperty(key)) {
                     const val = this.properties[key];
                     if (val) {
+                        if (first) {
+                            first = false;
+                        }
+                        else {
+                            cmdStr += ',';
+                        }
                         // safely append the val - avoid blowing up when attempting to
                         // call .replace() if message is not a string for some reason
-                        cmdStr += `${key}=${escape(`${val || ''}`)},`;
+                        cmdStr += `${key}=${escape(`${val || ''}`)}`;
                     }
                 }
             }
@@ -1916,7 +1911,7 @@ var ExitCode;
 // Variables
 //-----------------------------------------------------------------------
 /**
- * sets env variable for this action and future actions in the job
+ * Sets env variable for this action and future actions in the job
  * @param name the name of the variable to set
  * @param val the value of the variable
  */
@@ -1926,18 +1921,13 @@ function exportVariable(name, val) {
 }
 exports.exportVariable = exportVariable;
 /**
- * exports the variable and registers a secret which will get masked from logs
- * @param name the name of the variable to set
- * @param val value of the secret
+ * Registers a secret which will get masked from logs
+ * @param secret value of the secret
  */
-function exportSecret(name, val) {
-    exportVariable(name, val);
-    // the runner will error with not implemented
-    // leaving the function but raising the error earlier
-    command_1.issueCommand('set-secret', {}, val);
-    throw new Error('Not implemented.');
+function setSecret(secret) {
+    command_1.issueCommand('add-mask', {}, secret);
 }
-exports.exportSecret = exportSecret;
+exports.setSecret = setSecret;
 /**
  * Prepends inputPath to the PATH (for this action and future actions)
  * @param inputPath
@@ -2060,6 +2050,29 @@ function group(name, fn) {
     });
 }
 exports.group = group;
+//-----------------------------------------------------------------------
+// Wrapper action state
+//-----------------------------------------------------------------------
+/**
+ * Saves state for current action, the state can only be retrieved by this action's post job execution.
+ *
+ * @param     name     name of the state to store
+ * @param     value    value to store
+ */
+function saveState(name, value) {
+    command_1.issueCommand('save-state', { name }, value);
+}
+exports.saveState = saveState;
+/**
+ * Gets the value of an state set by this action's main execution.
+ *
+ * @param     name     name of the state to get
+ * @returns   string
+ */
+function getState(name) {
+    return process.env[`STATE_${name}`] || '';
+}
+exports.getState = getState;
 //# sourceMappingURL=core.js.map
 
 /***/ }),
@@ -2075,6 +2088,13 @@ module.exports = require("http");
 /***/ (function(module) {
 
 module.exports = require("path");
+
+/***/ }),
+
+/***/ 669:
+/***/ (function(module) {
+
+module.exports = require("util");
 
 /***/ }),
 

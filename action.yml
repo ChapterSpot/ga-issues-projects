@@ -10,6 +10,9 @@ inputs:
   github_token:
     description: 'GitHub token, use {{ secrets.GITHUB_TOKEN }}'
     required: true
+  issue_project_ids:
+    description: 'IDs of project boards to associate newly created issues. Delimited by comma.'
+    required: true
 runs:
   using: 'node12'
   main: 'dist/index.js'
